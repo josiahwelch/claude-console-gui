@@ -16,6 +16,12 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
 
         self.tab_view = Adw.TabView()
         self.tab_view.connect("close-page", self._on_close_page)
+        self.tab_view.connect("setup-menu", self._on_setup_tab_menu)
+        self._menu_page = None
+
+        tab_menu = Gio.Menu()
+        tab_menu.append("Rename Tab…", "win.rename-tab")
+        self.tab_view.set_menu_model(tab_menu)
 
         tab_bar = Adw.TabBar(view=self.tab_view, autohide=False)
 
@@ -36,6 +42,7 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
 
         self._add_action("new-tab", lambda *_a: self.new_tab())
         self._add_action("close-tab", lambda *_a: self.close_current_tab())
+        self._add_action("rename-tab", lambda *_a: self._rename_tab())
 
         self.new_tab()
 
@@ -64,3 +71,31 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
     def _on_close_page(self, tab_view, page):
         tab_view.close_page_finish(page, True)
         return True
+
+    def _on_setup_tab_menu(self, _tab_view, page):
+        self._menu_page = page
+
+    def _rename_tab(self):
+        page = self._menu_page or self.tab_view.get_selected_page()
+        if page is None:
+            return
+
+        entry = Gtk.Entry(text=page.get_title())
+        entry.set_activates_default(True)
+
+        dialog = Adw.AlertDialog(heading="Rename Tab")
+        dialog.set_extra_child(entry)
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("rename", "Rename")
+        dialog.set_response_appearance("rename", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("rename")
+        dialog.set_close_response("cancel")
+
+        def on_response(_dialog, response):
+            if response == "rename":
+                title = entry.get_text().strip()
+                if title:
+                    page.set_title(title)
+
+        dialog.connect("response", on_response)
+        dialog.present(self)
