@@ -6,7 +6,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gtk
+from gi.repository import Adw, Gdk, GLib, Gtk
 
 from .window import ClaudeConsoleWindow
 
@@ -16,6 +16,9 @@ STYLE_CSS = Path(__file__).with_name("style.css")
 
 class ClaudeConsoleApplication(Adw.Application):
     def __init__(self):
+        # Sets X11 WM_CLASS so window managers can match this window to the
+        # installed .desktop file's StartupWMClass and resolve its icon.
+        GLib.set_prgname(APP_ID)
         super().__init__(application_id=APP_ID)
 
     def do_startup(self):
