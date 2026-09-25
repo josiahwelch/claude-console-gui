@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Claude Console
+Comment=A graphical terminal for the Claude Code CLI
+Exec=/home/josiahwelch/git/claude-console-gui/claude-console-gui
+Icon=/home/josiahwelch/git/claude-console-gui/data/icons/claude-console-gui.svg
+Terminal=false
+Categories=Development;Utility;TerminalEmulator;
+StartupWMClass=io.josiahwelch.ClaudeConsoleGui
