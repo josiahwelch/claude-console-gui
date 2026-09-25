@@ -5,5 +5,5 @@ Comment=A graphical terminal for the Claude Code CLI
 Exec=/home/josiahwelch/git/claude-console-gui/claude-console-gui
 Icon=/home/josiahwelch/git/claude-console-gui/data/icons/claude-console-gui.svg
 Terminal=false
-Categories=Development;Utility;TerminalEmulator;
+Categories=Development;
 StartupWMClass=io.josiahwelch.ClaudeConsoleGui
