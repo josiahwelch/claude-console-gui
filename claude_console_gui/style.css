@@ -1,0 +1,6 @@
+/* Force the app's terracotta accent instead of the system accent color. */
+:root {
+  --accent-bg-color: #DA7756;
+  --accent-color: #DA7756;
+  --accent-fg-color: #1E1B18;
+}

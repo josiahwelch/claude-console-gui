@@ -1,14 +1,17 @@
 """Adw.Application entry point: accent color, accelerators, window lifecycle."""
 
+from pathlib import Path
+
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gdk, Gtk
 
 from .window import ClaudeConsoleWindow
 
 APP_ID = "io.josiahwelch.ClaudeConsoleGui"
+STYLE_CSS = Path(__file__).with_name("style.css")
 
 
 class ClaudeConsoleApplication(Adw.Application):
@@ -18,7 +21,15 @@ class ClaudeConsoleApplication(Adw.Application):
     def do_startup(self):
         Adw.Application.do_startup(self)
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
-        Adw.StyleManager.get_default().set_accent_color(Adw.AccentColor.ORANGE)
+
+        provider = Gtk.CssProvider()
+        provider.load_from_path(str(STYLE_CSS))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
         self.set_accels_for_action("win.new-tab", ["<Primary><Shift>t"])
         self.set_accels_for_action("win.close-tab", ["<Primary><Shift>w"])
 
