@@ -20,6 +20,7 @@ class ClaudeConsoleApplication(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        self.hold()
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
 
         provider = Gtk.CssProvider()

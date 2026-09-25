@@ -16,7 +16,6 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
 
         self.tab_view = Adw.TabView()
         self.tab_view.connect("close-page", self._on_close_page)
-        self.tab_view.connect("notify::n-pages", self._on_page_count_changed)
 
         tab_bar = Adw.TabBar(view=self.tab_view, autohide=False)
 
@@ -65,7 +64,3 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
     def _on_close_page(self, tab_view, page):
         tab_view.close_page_finish(page, True)
         return True
-
-    def _on_page_count_changed(self, tab_view, _pspec):
-        if tab_view.get_n_pages() == 0:
-            self.close()

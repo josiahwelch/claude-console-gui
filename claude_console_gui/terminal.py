@@ -45,11 +45,10 @@ def new_terminal():
 
 
 def spawn_claude(terminal, working_directory=None, on_exit=None):
-    """Spawn a login shell that launches `claude`, then drops to an interactive
-    shell when it exits so the tab doesn't just vanish on /exit or Ctrl-D."""
-    shell = os.environ.get("SHELL", "/bin/sh")
+    """Spawn /bin/sh to launch `claude`, then drop to an interactive shell
+    when it exits so the tab doesn't just vanish on /exit or Ctrl-D."""
     working_directory = working_directory or os.path.expanduser("~")
-    command = f"claude; exec {shell} -i"
+    command = "claude; exec /bin/sh -i"
 
     def on_spawn(term, pid, error, _data):
         if error is not None:
@@ -58,7 +57,7 @@ def spawn_claude(terminal, working_directory=None, on_exit=None):
     terminal.spawn_async(
         Vte.PtyFlags.DEFAULT,
         working_directory,
-        [shell, "-lc", command],
+        ["/bin/sh", "-c", command],
         [],
         GLib.SpawnFlags.DEFAULT,
         None,
