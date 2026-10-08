@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.0
+
+- Sessions are now a chat interface instead of an embedded terminal. Each
+  session runs `claude` in headless stream-json mode.
+- Claude's replies stream in as formatted Markdown, with code blocks that
+  have a copy button.
+- Tool calls show as compact rows that expand to show the command, diff or
+  output.
+- Permission requests appear as cards with Deny / Always allow / Allow.
+  Questions Claude asks (AskUserQuestion) and plans from plan mode get their
+  own cards.
+- Permission-mode and model pickers in the message box, switchable
+  mid-conversation.
+- The stop button or Escape interrupts a reply.
+- If `claude` exits unexpectedly, the chat shows its error output and a
+  Restart button that resumes the conversation.
+- The welcome screen is now a message box with a project folder picker.
+- Closing the window now quits the app and stops its `claude` processes.
+- VTE is no longer required.
+- README: new FreeBSD compatibility section covering the `claude-code`
+  port, Linux compatibility setup, and the required versions.
+
 ## 0.3.0
 
 - Redesigned to look like the Claude desktop app: a sessions sidebar

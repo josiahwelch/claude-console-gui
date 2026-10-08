@@ -119,10 +119,227 @@
   border-bottom: 1px solid #3E3E38;
 }
 
-.claude-terminal {
-  padding: 10px 16px;
+.welcome-composer {
+  margin-top: 6px;
 }
 
-.boxed-list {
+/* -- Composer -------------------------------------------------------------- */
+
+.composer-area {
+  padding: 4px 16px 16px;
+}
+
+.composer {
   background-color: #30302E;
+  border: 1px solid #3E3E38;
+  border-radius: 18px;
+  padding: 12px 12px 8px 16px;
+  box-shadow: 0 4px 18px alpha(black, 0.18);
+}
+
+.composer:focus-within {
+  border-color: #5A5852;
+}
+
+.composer-text,
+.composer-text text {
+  background-color: transparent;
+  color: #FAF9F5;
+  font-size: 15px;
+}
+
+.composer-text {
+  min-height: 48px;
+}
+
+.composer-placeholder {
+  color: #8E8B82;
+  font-size: 15px;
+}
+
+.composer-controls {
+  margin-top: 6px;
+}
+
+.composer-dropdown > button,
+menubutton.composer-dropdown > button {
+  color: #C2C0B6;
+  font-size: 13px;
+  padding: 2px 8px;
+  min-height: 28px;
+  border-radius: 8px;
+}
+
+.send-button {
+  background-color: #C6613F;
+  color: #FAF9F5;
+  min-width: 34px;
+  min-height: 34px;
+}
+
+.send-button:hover {
+  background-color: #D97757;
+}
+
+.send-button:disabled {
+  background-color: alpha(#C6613F, 0.35);
+  color: alpha(#FAF9F5, 0.5);
+}
+
+.menu-heading {
+  margin: 6px 10px 2px;
+  font-size: 12px;
+  color: #A6A39A;
+}
+
+.folder-item {
+  padding: 6px 10px;
+  font-weight: normal;
+}
+
+/* -- Transcript ------------------------------------------------------------ */
+
+.chat-clamp {
+  padding: 24px 16px 12px;
+}
+
+.transcript {
+  font-size: 15px;
+}
+
+.user-bubble {
+  background-color: #141413;
+  border-radius: 16px;
+  padding: 10px 16px;
+  margin-left: 80px;
+}
+
+.assistant-text label,
+.md-prose {
+  line-height: 1.5;
+}
+
+.markdown a {
+  color: #D97757;
+}
+
+.code-block {
+  background-color: #1F1E1D;
+  border: 1px solid #3E3E38;
+  border-radius: 10px;
+}
+
+.code-header {
+  padding: 2px 4px 2px 12px;
+  border-bottom: 1px solid #3E3E38;
+}
+
+.code-lang {
+  font-size: 12px;
+  color: #A6A39A;
+}
+
+.code-text {
+  font-family: monospace;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.md-table {
+  border: 1px solid #3E3E38;
+  border-radius: 8px;
+}
+
+.md-cell {
+  padding: 6px 12px;
+  border-bottom: 1px solid #3E3E38;
+}
+
+.md-header-cell {
+  background-color: #30302E;
+}
+
+.tool-call {
+  border: 1px solid #3E3E38;
+  border-radius: 10px;
+}
+
+.tool-header {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: normal;
+  font-size: 14px;
+}
+
+.tool-icon {
+  color: #A6A39A;
+}
+
+.tool-call .success {
+  color: #A9C793;
+}
+
+.tool-call .error {
+  color: #E08278;
+}
+
+.tool-details {
+  padding: 4px 12px 12px;
+}
+
+.tool-text {
+  font-size: 12.5px;
+  color: #C2C0B6;
+}
+
+.permission-card {
+  background-color: #30302E;
+  border: 1px solid #D97757;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.permission-heading {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.permission-detail {
+  background-color: #1F1E1D;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.question-chip {
+  font-size: 12px;
+  color: #D97757;
+  font-weight: 600;
+}
+
+.question-option {
+  padding: 4px 0;
+}
+
+.permission-outcome {
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.working {
+  color: #A6A39A;
+  padding: 0 4px;
+}
+
+.working spinner {
+  color: #D97757;
+}
+
+.notice {
+  border-radius: 10px;
+  padding: 12px 14px;
+  background-color: #30302E;
+}
+
+.notice-error {
+  border: 1px solid alpha(#E08278, 0.6);
 }

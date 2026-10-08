@@ -1,5 +1,5 @@
 """Main application window, laid out like the Claude desktop app: a sidebar of
-sessions on the left and the selected session's terminal on the right."""
+sessions on the left and the selected session's chat on the right."""
 
 import itertools
 import os
@@ -12,7 +12,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
 from . import recents
-from .terminal import connect_title, new_terminal, spawn_claude
+from .chat import MODELS, PERMISSION_MODES, ChatView, Composer, make_dropdown
 
 APP_ICON = Path(__file__).resolve().parent.parent / "data" / "icons" / "claude-console-gui.svg"
 WELCOME = "welcome"
@@ -32,16 +32,16 @@ def _folder_name(folder):
 
 
 class _Session:
-    """One Claude process: its terminal, sidebar row, and title state."""
+    """One Claude conversation: its chat view, sidebar row, and title state."""
 
     _ids = itertools.count(1)
 
-    def __init__(self, folder):
+    def __init__(self, folder, on_changed, model=None, permission_mode="default"):
         self.id = f"session-{next(self._ids)}"
         self.folder = folder
-        self.terminal = new_terminal()
         self.custom_title = None
-        self.claude_title = ""
+        self.auto_title = ""
+        self._on_changed = on_changed
 
         self.spinner = Gtk.Spinner(visible=False, valign=Gtk.Align.CENTER)
         self.spinner.add_css_class("session-spinner")
@@ -72,17 +72,27 @@ class _Session:
         self.row = Gtk.ListBoxRow(child=box)
         self.row.add_css_class("session-row")
         self.row.session = self
+
+        self.chat = ChatView(
+            folder,
+            on_title=self._set_auto_title,
+            on_busy=self._set_busy,
+            model=model,
+            permission_mode=permission_mode,
+        )
         self._update_title()
 
     @property
     def title(self):
-        return self.custom_title or self.claude_title or "New session"
+        return self.custom_title or self.auto_title or "New session"
 
-    def set_claude_title(self, title, busy):
-        self.claude_title = title
+    def _set_auto_title(self, title):
+        self.auto_title = title
+        self._update_title()
+
+    def _set_busy(self, busy):
         self.spinner.set_visible(busy)
         self.spinner.set_spinning(busy)
-        self._update_title()
 
     def rename(self, title):
         self.custom_title = title or None
@@ -91,13 +101,16 @@ class _Session:
     def _update_title(self):
         self.title_label.set_label(self.title)
         self.row.set_tooltip_text(f"{self.title}\n{_display_path(self.folder)}")
+        self._on_changed(self)
 
 
 class ClaudeConsoleWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Claude Console")
-        self.set_default_size(1100, 700)
+        self.set_default_size(1100, 760)
         self.sessions = []
+        folders = recents.load()
+        self.welcome_folder = folders[0] if folders else os.path.expanduser("~")
 
         self.split_view = Adw.OverlaySplitView(
             min_sidebar_width=220,
@@ -118,9 +131,11 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         self._add_action("next-session", lambda *_a: self._cycle(1))
         self._add_action("previous-session", lambda *_a: self._cycle(-1))
         self._add_action("toggle-sidebar", lambda *_a: self._toggle_sidebar())
+        self._add_action("stop", lambda *_a: self._stop_current())
         self._add_action("rename-session", self._on_rename_action, "s")
         self._add_action("close-session", self._on_close_action, "s")
 
+        self.connect("close-request", self._on_close_request)
         self.show_welcome()
 
     def _add_action(self, name, callback, parameter_type=None):
@@ -128,6 +143,14 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         action = Gio.SimpleAction.new(name, variant_type)
         action.connect("activate", callback)
         self.add_action(action)
+
+    def _on_close_request(self, _window):
+        for session in self.sessions:
+            session.chat.shutdown()
+        # The application holds itself alive (so a failed launch can't quit it
+        # silently); closing the window is the explicit way out.
+        self.get_application().quit()
+        return False
 
     # -- Layout ---------------------------------------------------------------
 
@@ -206,92 +229,132 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
             logo = Gtk.Image.new_from_file(str(APP_ICON))
         else:
             logo = Gtk.Image.new_from_icon_name("utilities-terminal-symbolic")
-        logo.set_pixel_size(56)
+        logo.set_pixel_size(48)
 
         greeting = Gtk.Label(label="What are we working on?", wrap=True, justify=Gtk.Justification.CENTER)
         greeting.add_css_class("greeting")
 
-        subtitle = Gtk.Label(
-            label="Pick a project folder to start a Claude Code session in it.",
-            wrap=True,
-            justify=Gtk.Justification.CENTER,
+        title_row = Gtk.Box(spacing=14, halign=Gtk.Align.CENTER)
+        title_row.append(logo)
+        title_row.append(greeting)
+
+        self.welcome_composer = Composer(
+            "Describe a task or ask a question…", self._on_welcome_submit
         )
-        subtitle.add_css_class("dim-label")
+        self.welcome_composer.add_css_class("welcome-composer")
 
-        open_button = Gtk.Button(label="Open folder…", action_name="win.open-folder")
-        open_button.add_css_class("pill")
-        open_button.add_css_class("suggested-action")
+        self.folder_label = Gtk.Label(ellipsize=Pango.EllipsizeMode.MIDDLE, max_width_chars=28)
+        folder_content = Gtk.Box(spacing=6)
+        folder_content.append(Gtk.Image.new_from_icon_name("folder-symbolic"))
+        folder_content.append(self.folder_label)
+        folder_content.append(Gtk.Image.new_from_icon_name("pan-down-symbolic"))
 
-        home_button = Gtk.Button(label="Start in home folder")
-        home_button.add_css_class("pill")
-        home_button.connect("clicked", lambda _b: self.start_session(os.path.expanduser("~")))
+        self.folder_popover = Gtk.Popover(has_arrow=False)
+        self.folder_popover.add_css_class("menu")
+        self.folder_popover.connect("show", lambda _p: self._refresh_folder_menu())
+        folder_button = Gtk.MenuButton(
+            child=folder_content,
+            popover=self.folder_popover,
+            tooltip_text="Project folder",
+        )
+        folder_button.add_css_class("flat")
+        folder_button.add_css_class("composer-dropdown")
 
-        buttons = Gtk.Box(spacing=12, halign=Gtk.Align.CENTER)
-        buttons.append(open_button)
-        buttons.append(home_button)
+        self.welcome_mode = make_dropdown(PERMISSION_MODES, "Permission mode")
+        self.welcome_model = make_dropdown(MODELS, "Model")
+        self.welcome_composer.controls.append(folder_button)
+        self.welcome_composer.controls.append(self.welcome_mode)
+        self.welcome_composer.controls.append(self.welcome_model)
 
-        self.recents_heading = Gtk.Label(label="Recent folders", xalign=0)
-        self.recents_heading.add_css_class("heading")
-        self.recents_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
-        self.recents_list.add_css_class("boxed-list")
+        hint = Gtk.Label(label="Enter to send · Shift+Enter for a new line")
+        hint.add_css_class("dim-label")
+        hint.add_css_class("caption")
 
         box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
-            spacing=18,
+            spacing=22,
             valign=Gtk.Align.CENTER,
             margin_top=36,
             margin_bottom=36,
             margin_start=24,
             margin_end=24,
         )
-        box.append(logo)
-        box.append(greeting)
-        box.append(subtitle)
-        box.append(buttons)
-        box.append(self.recents_heading)
-        box.append(self.recents_list)
-        self.recents_heading.set_margin_top(18)
+        box.append(title_row)
+        box.append(self.welcome_composer)
+        box.append(hint)
 
-        clamp = Adw.Clamp(child=box, maximum_size=520)
+        self._update_folder_label()
+        clamp = Adw.Clamp(child=box, maximum_size=680)
         return Gtk.ScrolledWindow(child=clamp, hscrollbar_policy=Gtk.PolicyType.NEVER)
 
-    def _refresh_recents(self):
-        self.recents_list.remove_all()
+    def _update_folder_label(self):
+        self.folder_label.set_label(_folder_name(self.welcome_folder))
+        self.folder_label.get_parent().get_parent().set_tooltip_text(_display_path(self.welcome_folder))
+
+    def _refresh_folder_menu(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         folders = recents.load()
+        home = os.path.expanduser("~")
+        if home not in folders:
+            folders.append(home)
+
+        if folders:
+            heading = Gtk.Label(label="Recent folders", xalign=0)
+            heading.add_css_class("menu-heading")
+            box.append(heading)
         for folder in folders:
-            row = Adw.ActionRow(
-                title=GLib.markup_escape_text(_folder_name(folder)),
-                subtitle=GLib.markup_escape_text(_display_path(folder)),
-                activatable=True,
-            )
-            row.add_prefix(Gtk.Image.new_from_icon_name("folder-symbolic"))
-            row.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
-            row.connect("activated", lambda _r, f=folder: self.start_session(f))
-            self.recents_list.append(row)
-        self.recents_heading.set_visible(bool(folders))
-        self.recents_list.set_visible(bool(folders))
+            button = Gtk.Button()
+            button.add_css_class("flat")
+            button.add_css_class("folder-item")
+            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            name = Gtk.Label(label=_folder_name(folder), xalign=0)
+            path = Gtk.Label(label=_display_path(folder), xalign=0, ellipsize=Pango.EllipsizeMode.MIDDLE)
+            path.add_css_class("dim-label")
+            path.add_css_class("caption")
+            content.append(name)
+            content.append(path)
+            button.set_child(content)
+            button.connect("clicked", lambda _b, f=folder: self._pick_welcome_folder(f))
+            box.append(button)
+
+        box.append(Gtk.Separator())
+        choose = Gtk.Button(label="Choose another folder…", action_name="win.open-folder")
+        choose.add_css_class("flat")
+        choose.add_css_class("folder-item")
+        choose.connect("clicked", lambda _b: self.folder_popover.popdown())
+        box.append(choose)
+        self.folder_popover.set_child(box)
+
+    def _pick_welcome_folder(self, folder):
+        self.welcome_folder = folder
+        self._update_folder_label()
+        self.folder_popover.popdown()
+        self.welcome_composer.grab_focus()
+
+    def _on_welcome_submit(self, text):
+        mode = PERMISSION_MODES[self.welcome_mode.get_selected()][1]
+        model = MODELS[self.welcome_model.get_selected()][1]
+        session = self.start_session(self.welcome_folder, model=model, permission_mode=mode)
+        session.chat.send(text)
 
     # -- Sessions -------------------------------------------------------------
 
     def show_welcome(self):
-        self._refresh_recents()
         self.session_list.unselect_all()
         self.stack.set_visible_child_name(WELCOME)
         self.window_title.set_title("New session")
         self.window_title.set_subtitle("")
+        self.welcome_composer.grab_focus()
         if self.split_view.get_collapsed():
             self.split_view.set_show_sidebar(False)
 
-    def start_session(self, folder):
+    def start_session(self, folder, model=None, permission_mode="default"):
         recents.add(folder)
-        session = _Session(folder)
+        session = _Session(folder, self._on_session_changed, model=model, permission_mode=permission_mode)
         self.sessions.append(session)
-
-        connect_title(session.terminal, lambda title, busy: self._on_claude_title(session, title, busy))
         session.close_button.connect("clicked", lambda _b: self.close_session(session))
-        spawn_claude(session.terminal, folder, on_exit=lambda *_a: self.close_session(session))
 
-        self.stack.add_named(session.terminal, session.id)
+        self.stack.add_named(session.chat, session.id)
         self.session_list.prepend(session.row)
         self.session_list.select_row(session.row)
         return session
@@ -299,11 +362,12 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
     def close_session(self, session):
         if session not in self.sessions:
             return
+        session.chat.shutdown()
         index = self.sessions.index(session)
         self.sessions.remove(session)
         was_selected = self.session_list.get_selected_row() is session.row
         self.session_list.remove(session.row)
-        self.stack.remove(session.terminal)
+        self.stack.remove(session.chat)
 
         if not was_selected:
             return
@@ -325,6 +389,11 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         if session is not None:
             self.close_session(session)
 
+    def _stop_current(self):
+        session = self._current_session()
+        if session is not None:
+            session.chat.stop_turn()
+
     def _cycle(self, step):
         if not self.sessions:
             return
@@ -342,12 +411,11 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         session = row.session
         self.stack.set_visible_child_name(session.id)
         self._update_window_title(session)
-        session.terminal.grab_focus()
+        session.chat.composer.grab_focus()
         if self.split_view.get_collapsed():
             self.split_view.set_show_sidebar(False)
 
-    def _on_claude_title(self, session, title, busy):
-        session.set_claude_title(title, busy)
+    def _on_session_changed(self, session):
         if self._current_session() is session:
             self._update_window_title(session)
 
@@ -359,7 +427,7 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
 
     def _choose_folder(self):
         dialog = Gtk.FileDialog(title="Choose a project folder", modal=True)
-        dialog.set_initial_folder(Gio.File.new_for_path(os.path.expanduser("~")))
+        dialog.set_initial_folder(Gio.File.new_for_path(self.welcome_folder))
 
         def on_chosen(dialog, result):
             try:
@@ -367,7 +435,8 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
             except GLib.Error:
                 return  # cancelled
             if folder is not None and folder.get_path():
-                self.start_session(folder.get_path())
+                self.show_welcome()
+                self._pick_welcome_folder(folder.get_path())
 
         dialog.select_folder(self, None, on_chosen)
 
@@ -403,7 +472,7 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         entry = Gtk.Entry(text=session.title, activates_default=True)
 
         dialog = Adw.AlertDialog(heading="Rename Session")
-        dialog.set_body("Leave empty to use the title Claude chooses.")
+        dialog.set_body("Leave empty to name it after your first message.")
         dialog.set_extra_child(entry)
         dialog.add_response("cancel", "Cancel")
         dialog.add_response("rename", "Rename")
@@ -414,9 +483,6 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         def on_response(_dialog, response):
             if response == "rename":
                 session.rename(entry.get_text().strip())
-                if self._current_session() is session:
-                    self._update_window_title(session)
 
         dialog.connect("response", on_response)
         dialog.present(self)
-

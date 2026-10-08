@@ -41,6 +41,7 @@ class ClaudeConsoleApplication(Adw.Application):
         self.set_accels_for_action("win.toggle-sidebar", ["<Primary><Shift>b"])
         self.set_accels_for_action("win.next-session", ["<Primary>Page_Down"])
         self.set_accels_for_action("win.previous-session", ["<Primary>Page_Up"])
+        self.set_accels_for_action("win.stop", ["Escape"])
 
     def do_activate(self):
         window = self.props.active_window

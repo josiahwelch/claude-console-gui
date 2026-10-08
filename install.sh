@@ -19,7 +19,7 @@ command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$
 echo "Installed launcher and icon for the current user."
 
 missing=""
-for pkg in vte3 libadwaita py312-pygobject; do
+for pkg in libadwaita py312-pygobject adwaita-icon-theme; do
   pkg info -e "$pkg" >/dev/null 2>&1 || missing="$missing $pkg"
 done
 
@@ -29,4 +29,12 @@ if [ -n "$missing" ]; then
   echo "Run: sudo pkg install$missing"
 else
   echo "All required packages are installed."
+fi
+
+if ! command -v claude >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/claude" ]; then
+  echo
+  echo "Claude Code (the claude command) isn't installed. On FreeBSD:"
+  echo "  sudo sysrc linux_enable=YES && sudo service linux start"
+  echo "  sudo pkg install claude-code"
+  echo "Then run 'claude' once in a terminal to sign in."
 fi
