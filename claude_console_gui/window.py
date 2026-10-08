@@ -11,7 +11,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk, Pango
 
-from . import recents
+from . import history, recents
 from .chat import MODELS, PERMISSION_MODES, ChatView, Composer, make_dropdown
 
 APP_ICON = Path(__file__).resolve().parent.parent / "data" / "icons" / "claude-console-gui.svg"
@@ -36,11 +36,11 @@ class _Session:
 
     _ids = itertools.count(1)
 
-    def __init__(self, folder, on_changed, model=None, permission_mode="default"):
+    def __init__(self, folder, on_changed, model=None, permission_mode="default", history_entry=None):
         self.id = f"session-{next(self._ids)}"
         self.folder = folder
         self.custom_title = None
-        self.auto_title = ""
+        self.auto_title = history_entry.title if history_entry else ""
         self._on_changed = on_changed
 
         self.spinner = Gtk.Spinner(visible=False, valign=Gtk.Align.CENTER)
@@ -79,6 +79,7 @@ class _Session:
             on_busy=self._set_busy,
             model=model,
             permission_mode=permission_mode,
+            history_entry=history_entry,
         )
         self._update_title()
 
@@ -109,6 +110,8 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         super().__init__(application=app, title="Claude Console")
         self.set_default_size(1100, 760)
         self.sessions = []
+        self.history = history.History()
+        self.history_entries = []
         folders = recents.load()
         self.welcome_folder = folders[0] if folders else os.path.expanduser("~")
 
@@ -137,6 +140,7 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
 
         self.connect("close-request", self._on_close_request)
         self.show_welcome()
+        self.refresh_history()
 
     def _add_action(self, name, callback, parameter_type=None):
         variant_type = GLib.VariantType(parameter_type) if parameter_type else None
@@ -170,8 +174,8 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         )
         new_button.add_css_class("new-session")
 
-        heading = Gtk.Label(label="Sessions", xalign=0)
-        heading.add_css_class("sidebar-heading")
+        self.open_heading = Gtk.Label(label="Open", xalign=0, visible=False)
+        self.open_heading.add_css_class("sidebar-heading")
 
         self.session_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.session_list.add_css_class("navigation-sidebar")
@@ -183,15 +187,44 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         right_click.connect("pressed", self._on_session_list_right_click)
         self.session_list.add_controller(right_click)
 
+        history_heading = Gtk.Label(label="History", xalign=0, hexpand=True)
+        refresh = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Refresh history")
+        refresh.add_css_class("flat")
+        refresh.add_css_class("circular")
+        refresh.add_css_class("history-refresh")
+        refresh.connect("clicked", lambda _b: self.refresh_history())
+        history_header = Gtk.Box()
+        history_header.add_css_class("sidebar-heading")
+        history_header.append(history_heading)
+        history_header.append(refresh)
+
+        self.history_search = Gtk.SearchEntry(placeholder_text="Search history")
+        self.history_search.add_css_class("history-search")
+        self.history_search.connect("search-changed", lambda _e: self._render_history())
+
+        self.history_list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE)
+        self.history_list.add_css_class("navigation-sidebar")
+        self.history_list.connect("row-activated", lambda _l, row: self.open_history(row.entry))
+        self.history_placeholder = Gtk.Label(label="No saved conversations yet", wrap=True)
+        self.history_placeholder.add_css_class("dim-label")
+        self.history_placeholder.add_css_class("history-placeholder")
+        self.history_list.set_placeholder(self.history_placeholder)
+
+        lists = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        lists.append(self.open_heading)
+        lists.append(self.session_list)
+        lists.append(history_header)
+        lists.append(self.history_search)
+        lists.append(self.history_list)
+
         scroller = Gtk.ScrolledWindow(
-            child=self.session_list,
+            child=lists,
             vexpand=True,
             hscrollbar_policy=Gtk.PolicyType.NEVER,
         )
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         box.append(new_button)
-        box.append(heading)
         box.append(scroller)
 
         sidebar = Adw.ToolbarView(content=box)
@@ -348,16 +381,83 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         if self.split_view.get_collapsed():
             self.split_view.set_show_sidebar(False)
 
-    def start_session(self, folder, model=None, permission_mode="default"):
+    def start_session(self, folder, model=None, permission_mode="default", history_entry=None):
         recents.add(folder)
-        session = _Session(folder, self._on_session_changed, model=model, permission_mode=permission_mode)
+        session = _Session(
+            folder,
+            self._on_session_changed,
+            model=model,
+            permission_mode=permission_mode,
+            history_entry=history_entry,
+        )
         self.sessions.append(session)
         session.close_button.connect("clicked", lambda _b: self.close_session(session))
 
         self.stack.add_named(session.chat, session.id)
         self.session_list.prepend(session.row)
+        self.open_heading.set_visible(True)
         self.session_list.select_row(session.row)
         return session
+
+    # -- History --------------------------------------------------------------
+
+    def refresh_history(self):
+        self.history.scan_async(self._on_history_loaded)
+
+    def _on_history_loaded(self, entries):
+        self.history_entries = entries
+        self._render_history()
+
+    def _render_history(self):
+        self.history_list.remove_all()
+        open_ids = {s.chat.session_id for s in self.sessions if s.chat.session_id}
+        query = self.history_search.get_text().strip().lower()
+        self.history_placeholder.set_label(
+            "No matching conversations" if query else "No saved conversations yet"
+        )
+        shown = 0
+        for entry in self.history_entries:
+            if entry.session_id in open_ids:
+                continue
+            if query and query not in entry.title.lower() and query not in entry.folder.lower():
+                continue
+            self.history_list.append(self._history_row(entry))
+            shown += 1
+            if shown >= 200:
+                break
+
+    def _history_row(self, entry):
+        title = Gtk.Label(label=entry.title, xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        title.add_css_class("session-title")
+        meta = Gtk.Label(
+            label=f"{_folder_name(entry.folder)} · {history.relative_time(entry.modified)}",
+            xalign=0,
+            ellipsize=Pango.EllipsizeMode.END,
+        )
+        meta.add_css_class("session-folder")
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        box.append(title)
+        box.append(meta)
+        row = Gtk.ListBoxRow(child=box, tooltip_text=f"{entry.title}\n{_display_path(entry.folder)}")
+        row.add_css_class("session-row")
+        row.entry = entry
+        return row
+
+    def open_history(self, entry):
+        for session in self.sessions:
+            if session.chat.session_id == entry.session_id:
+                self.session_list.select_row(session.row)
+                return
+        if not os.path.isdir(entry.folder):
+            dialog = Adw.AlertDialog(
+                heading="Folder not found",
+                body=f"This conversation ran in {_display_path(entry.folder)}, which no longer exists.",
+            )
+            dialog.add_response("ok", "OK")
+            dialog.present(self)
+            return
+        self.start_session(entry.folder, history_entry=entry)
+        self._render_history()
 
     def close_session(self, session):
         if session not in self.sessions:
@@ -368,6 +468,8 @@ class ClaudeConsoleWindow(Adw.ApplicationWindow):
         was_selected = self.session_list.get_selected_row() is session.row
         self.session_list.remove(session.row)
         self.stack.remove(session.chat)
+        self.open_heading.set_visible(bool(self.sessions))
+        self.refresh_history()
 
         if not was_selected:
             return

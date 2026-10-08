@@ -6,6 +6,7 @@ import os
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
+from . import history
 from .claude_process import ClaudeProcess
 from .markdown import MarkdownView, safe_markup
 
@@ -483,7 +484,7 @@ def make_dropdown(options, tooltip):
 class ChatView(Gtk.Box):
     """One session's transcript and composer, driving a ClaudeProcess."""
 
-    def __init__(self, folder, on_title, on_busy, model=None, permission_mode="default"):
+    def __init__(self, folder, on_title, on_busy, model=None, permission_mode="default", history_entry=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.folder = folder
         self._on_title = on_title
@@ -537,7 +538,34 @@ class ChatView(Gtk.Box):
         self.append(self.scroller)
         self.append(composer_clamp)
 
-        self._start_process()
+        if history_entry is not None:
+            self.session_id = history_entry.session_id
+            self._titled = True
+            self._replay(history.load_transcript(history_entry.path))
+        self._start_process(resume=self.session_id)
+
+    def _replay(self, entries):
+        """Rebuild the transcript of a saved conversation. Saved entries have
+        the same shape as live stream-json events, so the live handlers draw
+        them; only typed prompts need picking out."""
+        for entry in entries:
+            if entry.get("isSidechain"):
+                continue
+            kind = entry.get("type")
+            if kind == "user":
+                text = history.prompt_text(entry)
+                if text and text.startswith("[Request interrupted"):
+                    self._add_divider("Interrupted")
+                elif text:
+                    self._add_user_message(text)
+                else:
+                    self._handle_user(entry)
+            elif kind == "assistant":
+                self._handle_assistant(entry)
+            elif kind == "system" and entry.get("subtype") == "compact_boundary":
+                self._add_divider("Conversation compacted")
+        for tool in self._tools.values():
+            tool.cancel()
 
     # -- Process lifecycle ----------------------------------------------------
 

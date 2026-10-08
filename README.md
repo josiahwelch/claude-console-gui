@@ -24,6 +24,10 @@ stream-json mode, so it uses your existing Claude Code login, settings,
 - **Sessions sidebar:** sessions are named after your first message, show a
   spinner while Claude works, and can be renamed or closed from a right-click
   menu.
+- **Conversation history:** the sidebar lists your past Claude Code
+  conversations, newest first, from every project. That includes ones you
+  started in the terminal. Click one to reopen it, with the earlier messages
+  shown, and keep going. Search filters by title or folder.
 - **Stop** a reply with the stop button or Escape.
 - If `claude` exits unexpectedly, its error output is shown in the chat with
   a **Restart session** button that resumes the conversation.
@@ -116,7 +120,10 @@ script. It installs the `.desktop` entry and icon under
 - **Enter** sends the message and **Shift+Enter** inserts a new line.
   Slash commands like `/compact` can be sent as messages.
 - **Rename or close a session** by right-clicking it in the sidebar, or hover
-  over it for a close button.
+  over it for a close button. Closed sessions move to **History**.
+- **Resume a past conversation** by clicking it under **History**. It reopens
+  in its original folder with `claude --resume`, so Claude has the full
+  context. If that folder no longer exists, the app tells you instead.
 - **Narrow windows** collapse the sidebar into an overlay.
 
 ### Shortcuts
@@ -129,6 +136,15 @@ script. It installs the `.desktop` entry and icon under
 - `Escape`: stop Claude's current reply
 
 Recent folders are stored in `~/.config/claude-console-gui/recents.json`.
+
+### Where history comes from
+
+The app doesn't keep its own copy of your conversations. It reads the
+transcripts Claude Code already saves under `~/.claude/projects` (or
+`$CLAUDE_CONFIG_DIR/projects`). To build the list it reads only the start
+and end of each file, on a background thread, and caches the results. A
+conversation's title is its `/rename` name if it has one, then Claude Code's
+auto-generated title, then your first message.
 
 ## How it works
 

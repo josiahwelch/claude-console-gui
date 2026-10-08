@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- Conversation history: the sidebar has a searchable History list of past
+  Claude Code conversations from every project, including ones started in
+  the terminal.
+- Clicking a past conversation replays its transcript and resumes it with
+  `claude --resume` in its original folder.
+- Closed sessions move into History. Open sessions are hidden from it.
+- Saved "[Request interrupted by user]" messages show as an "Interrupted"
+  divider.
+
 ## 0.4.0
 
 - Sessions are now a chat interface instead of an embedded terminal. Each
