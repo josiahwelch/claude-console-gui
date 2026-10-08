@@ -1,6 +1,128 @@
-/* Force the app's terracotta accent instead of the system accent color. */
+/* Claude desktop app dark theme: warm charcoal surfaces, ivory text,
+   Claude orange accent, serif display type. */
 :root {
-  --accent-bg-color: #DA7756;
-  --accent-color: #DA7756;
-  --accent-fg-color: #1E1B18;
+  --accent-bg-color: #C6613F;
+  --accent-color: #D97757;
+  --accent-fg-color: #FAF9F5;
+
+  --window-bg-color: #262624;
+  --window-fg-color: #FAF9F5;
+  --view-bg-color: #262624;
+  --view-fg-color: #FAF9F5;
+  --headerbar-bg-color: #262624;
+  --headerbar-fg-color: #FAF9F5;
+  --headerbar-shade-color: transparent;
+  --sidebar-bg-color: #1F1E1D;
+  --sidebar-fg-color: #FAF9F5;
+  --sidebar-backdrop-color: #1F1E1D;
+  --sidebar-border-color: #3E3E38;
+  --card-bg-color: #30302E;
+  --card-fg-color: #FAF9F5;
+  --dialog-bg-color: #30302E;
+  --popover-bg-color: #30302E;
+  --border-color: #3E3E38;
+}
+
+.brand,
+.greeting {
+  font-family: "Tiempos Headline", "Source Serif 4", "Source Serif Pro",
+    "Noto Serif", "DejaVu Serif", serif;
+  font-weight: 400;
+}
+
+.brand {
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+.greeting {
+  font-size: 30px;
+  letter-spacing: -0.02em;
+}
+
+/* -- Sidebar --------------------------------------------------------------- */
+
+.sidebar-pane,
+.sidebar-header {
+  background-color: #1F1E1D;
+}
+
+.new-session {
+  margin: 6px 10px 4px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background-color: transparent;
+  font-weight: 500;
+}
+
+.new-session:hover {
+  background-color: alpha(#FAF9F5, 0.06);
+}
+
+.new-session image {
+  color: #FAF9F5;
+  background-color: #C6613F;
+  border-radius: 999px;
+  padding: 3px;
+  margin-right: 4px;
+}
+
+.sidebar-heading {
+  margin: 14px 18px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #A6A39A;
+}
+
+.navigation-sidebar .session-row {
+  border-radius: 8px;
+  padding: 6px 6px 6px 10px;
+}
+
+.navigation-sidebar .session-row:selected {
+  background-color: #30302E;
+}
+
+.session-title {
+  font-size: 14px;
+}
+
+.session-folder {
+  font-size: 12px;
+  color: #8E8B82;
+}
+
+.session-row .session-spinner {
+  color: #D97757;
+}
+
+.session-row .session-close {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  opacity: 0;
+}
+
+.session-row:hover .session-close,
+.session-row:selected .session-close {
+  opacity: 0.7;
+}
+
+.session-row .session-close:hover {
+  opacity: 1;
+}
+
+/* -- Content --------------------------------------------------------------- */
+
+.content-header {
+  box-shadow: none;
+  border-bottom: 1px solid #3E3E38;
+}
+
+.claude-terminal {
+  padding: 10px 16px;
+}
+
+.boxed-list {
+  background-color: #30302E;
 }

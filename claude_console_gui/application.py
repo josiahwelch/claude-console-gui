@@ -34,8 +34,13 @@ class ClaudeConsoleApplication(Adw.Application):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
-        self.set_accels_for_action("win.new-tab", ["<Primary><Shift>t"])
-        self.set_accels_for_action("win.close-tab", ["<Primary><Shift>w"])
+        # Shift-modified so plain Ctrl shortcuts still reach Claude Code.
+        self.set_accels_for_action("win.new-session", ["<Primary><Shift>t", "<Primary><Shift>n"])
+        self.set_accels_for_action("win.open-folder", ["<Primary><Shift>o"])
+        self.set_accels_for_action("win.close-current", ["<Primary><Shift>w"])
+        self.set_accels_for_action("win.toggle-sidebar", ["<Primary><Shift>b"])
+        self.set_accels_for_action("win.next-session", ["<Primary>Page_Down"])
+        self.set_accels_for_action("win.previous-session", ["<Primary>Page_Up"])
 
     def do_activate(self):
         window = self.props.active_window

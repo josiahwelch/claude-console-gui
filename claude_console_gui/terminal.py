@@ -7,17 +7,17 @@ import gi
 gi.require_version("Vte", "3.91")
 from gi.repository import Gdk, GLib, Pango, Vte
 
-# Claude-brand-inspired warm palette: terracotta accent on a dark, warm background
-# instead of the default harsh green-on-black terminal look.
-_BACKGROUND = "#1E1B18"
-_FOREGROUND = "#F2ECE4"
-_CURSOR = "#DA7756"
+# Matches the Claude desktop app's dark theme so the terminal blends into the
+# surrounding chrome: warm charcoal background, ivory text, Claude orange.
+_BACKGROUND = "#262624"
+_FOREGROUND = "#FAF9F5"
+_CURSOR = "#D97757"
 
 _PALETTE = [
-    "#221F1C", "#C4635A", "#8FA876", "#D9A05B",
+    "#30302E", "#C4635A", "#8FA876", "#D9A05B",
     "#6F9BC1", "#B98DBB", "#6FB3AE", "#E7E0D6",
-    "#4A443E", "#E08278", "#A9C793", "#EFC17E",
-    "#8FBBE0", "#D3ACD6", "#8FD1CB", "#F7F2EA",
+    "#5A5852", "#E08278", "#A9C793", "#EFC17E",
+    "#8FBBE0", "#D3ACD6", "#8FD1CB", "#FAF9F5",
 ]
 
 
@@ -30,7 +30,7 @@ def _rgba(hex_color):
 def new_terminal():
     """Build a Vte.Terminal styled for the app; does not spawn a process yet."""
     terminal = Vte.Terminal()
-    terminal.set_font(Pango.FontDescription.from_string("Monospace 11"))
+    terminal.set_font(Pango.FontDescription.from_string("Monospace 10.5"))
     terminal.set_color_background(_rgba(_BACKGROUND))
     terminal.set_color_foreground(_rgba(_FOREGROUND))
     terminal.set_color_cursor(_rgba(_CURSOR))
@@ -39,6 +39,7 @@ def new_terminal():
     terminal.set_cursor_shape(Vte.CursorShape.BLOCK)
     terminal.set_cursor_blink_mode(Vte.CursorBlinkMode.OFF)
     terminal.set_bold_is_bright(True)
+    terminal.add_css_class("claude-terminal")
     terminal.set_hexpand(True)
     terminal.set_vexpand(True)
     return terminal
@@ -70,3 +71,27 @@ def spawn_claude(terminal, working_directory=None, on_exit=None):
 
     if on_exit is not None:
         terminal.connect("child-exited", lambda term, status: on_exit(term, status))
+
+
+def _is_spinner(char):
+    # Claude Code prefixes its title with a braille spinner frame while working
+    # and with a star glyph like "✳" when idle.
+    return "\u2800" <= char <= "\u28ff"
+
+
+def connect_title(terminal, callback):
+    """Call callback(title, busy) whenever the program running in the terminal
+    sets the window title. title is "" for the generic "Claude Code" title."""
+
+    def on_title_changed(term):
+        raw = (term.get_window_title() or "").strip()
+        busy = bool(raw) and _is_spinner(raw[0])
+        start = 0
+        while start < len(raw) and not raw[start].isalnum():
+            start += 1
+        title = raw[start:].strip()
+        if title == "Claude Code":
+            title = ""
+        callback(title, busy)
+
+    terminal.connect("window-title-changed", on_title_changed)
