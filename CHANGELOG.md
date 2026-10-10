@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- The "Thinking…"/"Writing…"/"Running tool…" status below the transcript
+  now breathes with a slow opacity pulse instead of showing a spinner,
+  matching the loading indicator in Claude's own apps.
+
 ## 0.5.0
 
 - Conversation history: the sidebar has a searchable History list of past

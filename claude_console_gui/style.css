@@ -342,12 +342,12 @@ menubutton.composer-dropdown > button {
 }
 
 .working {
-  color: #A6A39A;
   padding: 0 4px;
 }
 
-.working spinner {
-  color: #D97757;
+.working-label {
+  color: #A6A39A;
+  font-weight: 500;
 }
 
 .notice {

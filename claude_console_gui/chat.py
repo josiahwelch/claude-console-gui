@@ -2,6 +2,7 @@
 messages, tool calls and permission requests above a message composer."""
 
 import json
+import math
 import os
 
 from gi.repository import Adw, Gdk, GLib, Gtk, Pango
@@ -507,10 +508,11 @@ class ChatView(Gtk.Box):
 
         self.working = Gtk.Box(spacing=10, visible=False)
         self.working.add_css_class("working")
-        self.working_spinner = Gtk.Spinner()
         self.working_label = Gtk.Label(label="Thinking…", xalign=0)
-        self.working.append(self.working_spinner)
+        self.working_label.add_css_class("working-label")
         self.working.append(self.working_label)
+        self._pulse_source = None
+        self._pulse_phase = 0.0
 
         column = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         column.append(self.transcript)
@@ -588,6 +590,7 @@ class ChatView(Gtk.Box):
             )
 
     def shutdown(self):
+        self._stop_pulse()
         if self.process is not None:
             self.process.stop()
             self.process = None
@@ -684,10 +687,31 @@ class ChatView(Gtk.Box):
         self.busy = busy
         self.composer.set_busy(busy)
         self.working.set_visible(busy and not self._permission_cards)
-        self.working_spinner.set_spinning(busy)
+        if busy:
+            self._start_pulse()
+        else:
+            self._stop_pulse()
         if status:
             self.working_label.set_label(status)
         self._on_busy(busy)
+
+    def _start_pulse(self):
+        if self._pulse_source is not None:
+            return
+        self._pulse_phase = 0.0
+
+        def tick():
+            self._pulse_phase += 0.12
+            self.working_label.set_opacity(0.55 + 0.45 * (0.5 + 0.5 * math.sin(self._pulse_phase)))
+            return GLib.SOURCE_CONTINUE
+
+        self._pulse_source = GLib.timeout_add(50, tick)
+
+    def _stop_pulse(self):
+        if self._pulse_source is not None:
+            GLib.source_remove(self._pulse_source)
+            self._pulse_source = None
+        self.working_label.set_opacity(1.0)
 
     # -- Scrolling ------------------------------------------------------------
 
